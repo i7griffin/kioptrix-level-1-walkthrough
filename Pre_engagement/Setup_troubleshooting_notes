@@ -1,0 +1,142 @@
+Before beginning enumeration, significant time was spent troubleshooting the lab environment. The issue was not with Kioptrix itself but with the virtual networking configuration.
+
+Problem 1: Kioptrix Failed to Boot Correctly
+
+After importing the VM, Kioptrix repeatedly failed to obtain network information and sometimes became stuck during boot. Investigation showed that the original VM configuration expected an older VMware hardware configuration and networking setup.
+
+Observation
+
+The original .vmx file contained:
+
+ethernet0.networkName = "Bridged"
+
+which caused VMware to repeatedly use Bridged networking instead of the desired Host-only configuration.
+
+Resolution
+
+The VM was rebuilt using the original VMDK disk while manually configuring the network adapter.
+
+Problem 2: Kernel Panic During Boot
+
+During one attempt, the VM produced:
+
+Kernel panic - No init found
+
+This occurred because the virtual disk was not attached correctly.
+
+Resolution
+
+The original Kioptrix VMDK file was attached as the primary hard disk, allowing the operating system to locate its root filesystem and boot successfully.
+
+Problem 3: Hardware Discovery Prompts
+
+After successful booting, Kioptrix displayed several hardware detection messages such as:
+
+Ensoniq ES1371 AudioPCI
+Intel PIIX4 USB Controller
+
+These messages appeared because VMware presented virtual hardware not present in the original machine.
+
+Resolution
+
+The devices were ignored since they were unnecessary for the penetration testing exercise.
+
+Problem 4: Network Discovery Failed
+
+Initially, running:
+
+netdiscover
+
+or
+
+arp-scan
+
+failed to locate the Kioptrix host.
+
+Investigation
+
+Using:
+
+ip addr
+
+revealed that Kali had multiple interfaces:
+
+eth0
+eth1
+
+Only one interface had received an IP address.
+
+Further examination with:
+
+nmcli device status
+
+showed:
+
+eth1 connected
+eth0 disconnected
+
+This indicated that NetworkManager had assigned the active connection to the Host-only interface.
+
+Problem 5: No Internet Connectivity
+
+Although Kali could communicate with the lab network, internet access was unavailable.
+
+Investigation
+
+Checking routes:
+
+ip route
+
+showed only:
+
+192.168.177.0/24 dev eth1
+
+No default gateway existed.
+
+As a result:
+
+ping 8.8.8.8
+
+returned:
+
+Network is unreachable
+Resolution
+
+The NAT adapter was reconnected and assigned correctly, restoring internet connectivity while maintaining access to the Host-only lab network.
+
+Final Network Configuration
+
+The final working configuration was:
+
+Kali
+eth0 -> NAT
+eth1 -> Host-only
+Kioptrix
+eth0 -> Host-only
+
+This created the following topology:
+
+Internet
+   |
+ NAT
+   |
+ Kali (eth0)
+
+Host-only Network
+   |
+ Kali (eth1) <----> Kioptrix
+Host Discovery
+
+Once the network was functioning correctly, host discovery was performed using:
+
+arp-scan -I eth1 -l
+
+The scan identified the target:
+
+192.168.177.129
+
+Connectivity was verified using:
+
+ping -c 4 192.168.177.129
+
+which returned successful ICMP replies.
